@@ -8,6 +8,13 @@ class Node:
             return "Error"
         return self.data_store[key]
     
+    def get_value(self, key):
+        return self.__get_value(key)
+    
     def __set_value(self, key, value):
         self.data_store[key] = value
+    
+    def set_value(self, key, value):
+        return self.__set_value(key, value)
+    
 
