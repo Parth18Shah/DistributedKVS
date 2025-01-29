@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from nodemanager import NodeManager
 app = Flask(__name__)
 
@@ -9,8 +9,7 @@ def home():
 
 @app.route('/setkey/<key>', methods=['PUT'])
 def setkey(key):
-    print(request.json)
-    value = request.json.get('value')
+    value = request.json.get("value")
     return node_manager.set_values(key, value)
 
 @app.route('/getkey/<key>', methods=['GET'])
@@ -20,6 +19,10 @@ def getkey(key):
 @app.route('/show_all', methods = ['GET'])
 def show_all():
     return node_manager.show_data_from_all_nodes()
+
+@app.route('/stop_nodes', methods = ['POST'])
+def stop_nodes():
+    return node_manager.stop_nodes()
 
 if __name__ == '__main__':
     app.run(debug=True)
