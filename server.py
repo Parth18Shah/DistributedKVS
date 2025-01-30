@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify
 from nodemanager import NodeManager
+import os
 app = Flask(__name__)
 
-node_manager = NodeManager()
+node_manager = NodeManager(num_nodes=3)
 @app.route('/')
 def home():
     return 'Please use /setkey and /getkey'
@@ -25,5 +26,6 @@ def stop_nodes():
     return node_manager.stop_nodes()
 
 if __name__ == '__main__':
+    print("Server started with pid:- ", os.getpid())
     app.run(debug=True)
 
