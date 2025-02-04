@@ -1,69 +1,50 @@
-from flask import Flask, request, jsonify
-import multiprocessing
-import time
-from werkzeug.serving import make_server
+import grpc
+import service_pb2
+import service_pb2_grpc
+from concurrent import futures
+
+class KeyValueStoreServicer(service_pb2_grpc.KeyValueStoreServicer):
+
+    def __init__(self, data_store, node_id):
+        self.data_store = data_store 
+        self.node_id = node_id
+
+    def RpcGetValue(self, request, context):
+        print(self.data_store)
+        return service_pb2.RpcGetResponse(value=self.data_store.get(request.key,"Error"))
+
+    def RpcSetValue(self, request, context):
+        try:
+            value = request.value
+            key = request.key
+            self.data_store[key] = value
+            return service_pb2.RpcSetResponse(output=True)
+        except:
+            return service_pb2.RpcSetResponse(output=False)
+
+    def RpcShowAll(self, request, context):
+        return service_pb2.RpcShowAllResponse(node_id=self.node_id, data=dict(self.data_store))
+    
 
 class Node:
     def __init__(self, node_id, port):
         self.data_store = {}
         self.node_id = node_id
         self.port = port
-        self.process = None
+        self.server = None
     
     def start(self):
-        print('Starting Node...')
-        self.process = multiprocessing.Process(
-            target=create_flask_app,
-            args=(self.node_id, self.port, self.data_store)
-        )
-        self.process.start()
-        time.sleep(1)  # Give Flask time to initialize
-        print(f'Node {self.node_id} started with pid: {self.process.pid} on port: {self.port}')
-    
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        service_pb2_grpc.add_KeyValueStoreServicer_to_server(KeyValueStoreServicer(self.data_store, self.node_id), self.server)
+        self.server.add_insecure_port(f"[::]:{self.port}")
+        self.server.start()
+        print(f'Node {self.node_id} started on port:{self.port}')
+
+
     def stop(self):
-        if self.process and self.process.is_alive():
-            self.process.terminate()
-            self.process.join()
-            print(f'Node {self.node_id} with PID {self.process.pid} stopped.')
-
-def create_flask_app(node_id, port, data_store):
-    try:
-        app = Flask(__name__)
-
-        def __get_value(key):
-            if key not in data_store:
-                return jsonify({"error": "key not found"}), 400
-            return jsonify({"value": data_store[key]}), 200
-        
-        def __set_value(key, value):
-            data_store[key] = value
-
-        @app.route('/setkey/<key>', methods=['PUT'])
-        def setkey(key):
-            value = request.json.get("value")
-            __set_value(key, value)
-            return jsonify({"status": "success"}), 200
-
-        @app.route('/getkey/<key>', methods=['GET'])
-        def getkey(key):
-            return __get_value(key)
-        
-        @app.route('/show_all', methods = ['GET'])
-        def show_all():
-            return jsonify({"node_id": node_id, "data": dict(data_store)}), 200
-
-        @app.route('/health', methods=['GET'])
-        def health_check(): 
-            return jsonify({"status": "healthy", "node_id": node_id}), 200
-        
-        @app.route('/', methods=['GET'])
-        def home():
-            return f'Welcome to Node {node_id}'
-        
-        server = make_server('0.0.0.0', port, app)
-        server.serve_forever()
-    except Exception as e:
-        print(f"Error starting Node {node_id} on port {port}: {e}")
+        if self.server:
+            print(f'Node {self.node_id} stopped.')
+            self.server.stop(0)
 
 
         

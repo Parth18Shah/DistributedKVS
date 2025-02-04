@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+service KeyValueStore {
+    rpc RpcGetValue (RpcGetRequest) returns (RpcGetResponse);
+    rpc RpcSetValue (RpcSetRequest) returns (RpcSetResponse);
+    rpc RpcShowAll (RpcShowAllRequest) returns (RpcShowAllResponse);
+}
+
+message RpcGetRequest {
+    string key = 1;
+}
+
+message RpcGetResponse {
+    string value = 1;
+}
+
+message RpcSetRequest {
+    string key = 1;
+    string value = 2;
+}
+
+message RpcSetResponse {
+    bool output = 1;
+}
+
+message RpcShowAllRequest {
+
+}
+
+message RpcShowAllResponse {
+    int64 node_id = 1;
+    map<string,string> data = 2;
+}

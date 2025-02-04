@@ -1,6 +1,7 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from nodemanager import NodeManager
 import atexit
+import time
 
 app = Flask(__name__)
 
@@ -21,7 +22,11 @@ def create_server():
 
     @app.route('/getkey/<key>', methods=['GET'])
     def getkey(key):
-        return node_manager.get_value(key)
+        starttime = time.time()
+        result = node_manager.get_value(key)
+        endttime = time.time()
+        print(f"Time taken is {endttime-starttime}")
+        return result
 
     @app.route('/show_all', methods = ['GET'])
     def show_all():
@@ -36,7 +41,6 @@ def create_server():
     return app
 
 if __name__ == '__main__':
-    # multiprocessing.freeze_support()  # Required for Windows
     app = create_server()
     app.run(host='0.0.0.0', port=8000, debug=False)
 
