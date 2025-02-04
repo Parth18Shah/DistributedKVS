@@ -13,16 +13,9 @@ pip install -r requirements.txt
 ```
 
 ## 3) Run the Flask server
-### For Windows
 ``` Bash
-flask --app server run
+python server.py
 ```
-### Mac OS
-``` Bash
-export FLASK_APP=server.py 
-flask run
-```
-
 
 ## 4) Test using the following commands in the terminal:
 
