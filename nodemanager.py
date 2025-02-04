@@ -39,7 +39,6 @@ class NodeManager:
         for node in self.nodes:
             try:
                 get_response = requests.get(f'http://127.0.0.1:{node.port}/getkey/{key}')
-                print("inside get_value in nodemanager",get_response)
                 if get_response.status_code == 200:
                     return get_response.json(), 200
             except RequestException as e:
@@ -52,7 +51,6 @@ class NodeManager:
         if not value: return jsonify({"error": "value not found"}), 400
         prev_val = None
         get_response = self.get_value(key)
-        print(get_response[0])
         if get_response[1] == 200:
             prev_val = get_response[0].get("value")
 
