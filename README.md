@@ -25,24 +25,33 @@ python server.py
 
 - For Adding values to the store
 ``` Bash
-curl -X PUT http://127.0.0.1:5000/setkey/key1 -H "Content-Type: application/json" -d '{"value":"value1"}'
+curl -X PUT http://127.0.0.1:8000/setkey/key1 -H "Content-Type: application/json" -d '{"value":"value1"}'
 
 or 
 
-curl -X PUT http://127.0.0.1:5000/setkey/key1 -H "Content-Type: application/json" -d "{\"value\":\"value1\"}"
+curl -X PUT http://127.0.0.1:8000/setkey/key1 -H "Content-Type: application/json" -d "{\"value\":\"value1\"}"
 ```
 
 - For getting a value for a particular key
 ``` Bash
-curl -X GET "http://127.0.0.1:5000/getkey/key1"        
+curl -X GET "http://127.0.0.1:8000/getkey/key1"        
 ```     
 
 - To show all the data in all the replicas
 ``` Bash
-curl -X GET "http://127.0.0.1:5000/show_all"        
+curl -X GET "http://127.0.0.1:8000/show_all"        
 ```  
 
 - To stop nodes gracefully
 ``` Bash
-curl -X GET "http://127.0.0.1:5000/stop_nodes"        
+curl -X GET "http://127.0.0.1:8000/stop_nodes"    
 ```  
+
+## 5) Test the server:
+
+```Bash
+python test_server.py
+```
+
+You will be prompted to enter the number of test cases and the nodes you want in a replication group for the test.
+Please note: Currently, we have only one group of nodes, but we plan to implement horizontal scaling with sharding in the future, allowing for multiple replication groups.

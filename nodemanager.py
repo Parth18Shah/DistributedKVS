@@ -4,6 +4,7 @@ from requests.exceptions import RequestException
 import grpc
 import service_pb2
 import service_pb2_grpc
+import time
 
 
 class NodeManager:
@@ -42,7 +43,12 @@ class NodeManager:
             try:
                 with grpc.insecure_channel("localhost:"+str(node.port)) as channel:
                     stub = service_pb2_grpc.KeyValueStoreStub(channel)
+                    starttime = time.time()
                     get_response = stub.RpcGetValue(service_pb2.RpcGetRequest(key=key))
+                    endttime = time.time()
+                    log_statement = f"\n\nTime taken to get the value for the {key} is {endttime - starttime}"
+                    with open("log.txt", "a") as f:
+                        f.write(log_statement)
                     if get_response.value != "Error":
                         return {"value":get_response.value}, 200
             except RequestException as e:
@@ -55,14 +61,18 @@ class NodeManager:
         if not value: return jsonify({"error": "value not found"}), 400
         prev_val = None
         get_response = self.get_value(key)
-        print(get_response)
         if value in get_response:
             prev_val = get_response.get("value")
         try:
             for idx, node in enumerate(self.nodes):
                 with grpc.insecure_channel("localhost:"+str(node.port)) as channel:
                     stub = service_pb2_grpc.KeyValueStoreStub(channel)
+                    starttime = time.time()
                     set_response = stub.RpcSetValue(service_pb2.RpcSetRequest(key=key, value=value))
+                    endttime = time.time()
+                    log_statement = f"\n\nTime taken to set the {value} to the {key} is {endttime - starttime}"
+                    with open("log.txt", "a") as f:
+                        f.write(log_statement)
                     if not set_response.output:
                         if prev_val:
                             for j in range(idx):
@@ -83,7 +93,12 @@ class NodeManager:
             try:
                 with grpc.insecure_channel("localhost:"+str(node.port)) as channel:
                     stub = service_pb2_grpc.KeyValueStoreStub(channel)
+                    starttime = time.time()
                     showall_response = stub.RpcShowAll(service_pb2.RpcShowAllRequest())
+                    endttime = time.time()
+                    log_statement = f"\n\nTime taken to fetch data from all nodes is {endttime - starttime}"
+                    with open("log.txt", "a") as f:
+                        f.write(log_statement)
                     node_id_str = f"node {showall_response.node_id}"
                     if "Error" not in showall_response.data:
                         noderesponses[node_id_str] = dict(showall_response.data)

@@ -10,7 +10,6 @@ class KeyValueStoreServicer(service_pb2_grpc.KeyValueStoreServicer):
         self.node_id = node_id
 
     def RpcGetValue(self, request, context):
-        print(self.data_store)
         return service_pb2.RpcGetResponse(value=self.data_store.get(request.key,"Error"))
 
     def RpcSetValue(self, request, context):
