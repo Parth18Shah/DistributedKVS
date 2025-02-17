@@ -2,6 +2,7 @@ from Node import Node
 from flask import jsonify
 import requests
 from requests.exceptions import RequestException
+import time
 
 class NodeManager:
     def __init__(self, num_nodes=3, base_port=8001):
@@ -38,7 +39,12 @@ class NodeManager:
         if not key: return jsonify({"error": "Please provide a key"}), 400
         for node in self.nodes:
             try:
+                starttime = time.time()
                 get_response = requests.get(f'http://127.0.0.1:{node.port}/getkey/{key}')
+                endttime = time.time()
+                log_statement = f"\n\nTime taken to get the value for the {key} is {endttime - starttime}"
+                with open("log.txt", "a") as f:
+                    f.write(log_statement)
                 if get_response.status_code == 200:
                     return get_response.json(), 200
             except RequestException as e:
@@ -56,10 +62,12 @@ class NodeManager:
 
         try:
             for idx, node in enumerate(self.nodes):
-                set_response = requests.put(
-                f'http://127.0.0.1:{node.port}/setkey/{key}',
-                json={"value": value}
-            )
+                starttime = time.time()
+                set_response = requests.put( f'http://127.0.0.1:{node.port}/setkey/{key}',json={"value": value})
+                endttime = time.time()
+                log_statement = f"\n\nTime taken to set the {value} to the {key} is {endttime - starttime}"
+                with open("log.txt", "a") as f:
+                    f.write(log_statement)
                 if set_response.status_code != 200:
                     if prev_val:
                         for j in range(idx):
@@ -76,7 +84,12 @@ class NodeManager:
         noderesponses = []       
         for node in self.nodes:
             try:
+                starttime = time.time()
                 show_all_response = requests.get(f'http://127.0.0.1:{node.port}/show_all')
+                endttime = time.time()
+                log_statement = f"\n\nTime taken to fetch data from all nodes is {endttime - starttime}"
+                with open("log.txt", "a") as f:
+                    f.write(log_statement)
                 if show_all_response:
                     noderesponses.append(show_all_response.json())
                 else:
