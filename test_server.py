@@ -5,6 +5,7 @@ import os
 import subprocess
 import atexit
 import pandas as pd
+import sys
 
 fake = Faker()
 data = {}
@@ -27,12 +28,10 @@ def get_input():
     global NUMBER_OF_TESTCASES
     global NUMBER_OF_NODES
     testcase_count = input("Enter the number of test cases:")
-    nodes_count = input("Enter the number of nodes:")
+    NUMBER_OF_NODES = 1
 
     if testcase_count and testcase_count.isdigit():
         NUMBER_OF_TESTCASES = int(testcase_count)
-    if nodes_count and nodes_count.isdigit():
-        NUMBER_OF_NODES = int(nodes_count)
 
 def calc_aggregate_time():
     '''
@@ -79,13 +78,20 @@ def test_server():
     try:
         data = generate_data()
         # Starting the server
-        server_process = subprocess.Popen(["python", "server.py", str(NUMBER_OF_NODES)])
+        # For Mac
+        # server_process = subprocess.Popen(["python", "server.py", str(NUMBER_OF_NODES)])
+        # For Windows
+        python_executable = sys.executable 
+        server_process = subprocess.Popen([python_executable, "server.py", str(NUMBER_OF_NODES)])
         processes.append(server_process)
         time.sleep(5)
 
         # Setting the values
         for key, value in data.items():
-            set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'"
+            # For Mac
+            #set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'"
+            # For Windows
+            set_command = f'curl -X PUT http://13.59.217.25:5000/setkey/{key} -H "Content-Type:application/json" -d "{{\\"value\\": \\"{value}\\"}}"'
             os.system(set_command)
         time.sleep(5)
 
@@ -95,12 +101,12 @@ def test_server():
         # Getting the values
         for _ in range(NUMBER_OF_TESTCASES * 2):
             random_key = random.choice(list(data.keys()))
-            get_command =  f"curl -X GET http://127.0.0.1:8000/getkey/{random_key}"
+            get_command =  f"curl -X GET http://localhost:5000/getkey/{random_key}"
             os.system(get_command)
 
         time.sleep(5)
         # Checking the show all command
-        show_all_command =  f"curl -X GET http://127.0.0.1:8000/show_all"
+        show_all_command =  f"curl -X GET http://localhost:5000/show_all"
         os.system(show_all_command)
         
     except:
