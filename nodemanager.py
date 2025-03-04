@@ -10,30 +10,13 @@ class NodeManager:
         self.base_port = base_port
         for i in range(num_nodes):
             port = self.base_port + i
-            node = Node(i, port)
+            node = Node(i, port, num_nodes)
             self.nodes.append(node)
             node.start()
-        # self.wait_for_nodes()
-    
-    # TODO: To be used in future as Controller
-    # def wait_for_nodes(self, timeout=10):
-    #     start_time = time.time()
-    #     while time.time() - start_time < timeout:
-    #         all_nodes_started = True
-    #         for node in self.nodes:
-    #             try:
-    #                 response = requests.get(f'http://127.0.0.1:{node.port}/health')
-    #                 if response.status_code != 200:
-    #                     all_nodes_started = False
-    #                     break
-    #             except RequestException:
-    #                 all_nodes_started = False
-    #                 break
-    #         if all_nodes_started:
-    #             print("All nodes are ready!")
-    #             return True
-    #         time.sleep(0.5)
-    #     raise Exception("Timeout waiting for nodes to start")
+        
+        for i in range(num_nodes):
+            self.nodes[i].join_multicast()
+
 
     def get_value(self, key):
         if not key: return jsonify({"error": "Please provide a key"}), 400
@@ -43,8 +26,8 @@ class NodeManager:
                 get_response = requests.get(f'http://127.0.0.1:{node.port}/getkey/{key}')
                 endttime = time.time()
                 log_statement = f"\n\nTime taken to get the value for the {key} is {endttime - starttime}"
-                with open("log.txt", "a") as f:
-                    f.write(log_statement)
+                # with open("log.txt", "a") as f:
+                #     f.write(log_statement)
                 if get_response.status_code == 200:
                     return get_response.json(), 200
             except RequestException as e:
@@ -66,8 +49,8 @@ class NodeManager:
                 set_response = requests.put( f'http://127.0.0.1:{node.port}/setkey/{key}',json={"value": value})
                 endttime = time.time()
                 log_statement = f"\n\nTime taken to set the {value} to the {key} is {endttime - starttime}"
-                with open("log.txt", "a") as f:
-                    f.write(log_statement)
+                # with open("log.txt", "a") as f:
+                #     f.write(log_statement)
                 if set_response.status_code != 200:
                     if prev_val:
                         for j in range(idx):
@@ -88,8 +71,8 @@ class NodeManager:
                 show_all_response = requests.get(f'http://127.0.0.1:{node.port}/show_all')
                 endttime = time.time()
                 log_statement = f"\n\nTime taken to fetch data from all nodes is {endttime - starttime}"
-                with open("log.txt", "a") as f:
-                    f.write(log_statement)
+                # with open("log.txt", "a") as f:
+                #     f.write(log_statement)
                 if show_all_response:
                     noderesponses.append(show_all_response.json())
                 else:
