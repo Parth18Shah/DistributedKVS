@@ -86,15 +86,16 @@ def test_server():
         python_executable = sys.executable 
         server_process = subprocess.Popen([python_executable, "server.py", str(NUMBER_OF_NODES)])
         processes.append(server_process)
-        time.sleep(5)
+        time.sleep(15)
 
         # Setting the values
         for key, value in data.items():
             # For Mac
-            #set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'"
+            set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'"
             # For Windows
-            set_command = f'curl -X PUT http://127.0.0.1:8000/setkey/{key} -H "Content-Type:application/json" -d "{{\\"value\\": \\"{value}\\"}}"'
+            # set_command = f'curl -X PUT http://127.0.0.1:8000/setkey/{key} -H "Content-Type:application/json" -d "{{\\"value\\": \\"{value}\\"}}"'
             os.system(set_command)
+            time.sleep(5)
         time.sleep(5)
 
         print('\n Done with setting values')
@@ -105,11 +106,12 @@ def test_server():
             random_key = random.choice(list(data.keys()))
             get_command =  f"curl -X GET http://127.0.0.1:8000/getkey/{random_key}"
             os.system(get_command)
+            time.sleep(5)
 
         time.sleep(5)
         # Checking the show all command
-        show_all_command =  f"curl -X GET http://127.0.0.1:8000/show_all"
-        os.system(show_all_command)
+        # show_all_command =  f"curl -X GET http://127.0.0.1:8000/show_all"
+        # os.system(show_all_command)
         
     except:
         with open("log.txt", "a") as f:
