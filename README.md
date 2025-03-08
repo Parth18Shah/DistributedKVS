@@ -21,19 +21,19 @@ python server.py
 
 - For Adding values to the store
 ``` Bash
-curl -X PUT http://127.0.0.1:5000/setkey/key1 -H "Content-Type: application/json" -d '{"value":"value1"}'
+curl -X PUT http://127.0.0.1:8000/setkey/key1 -H "Content-Type: application/json" -d '{"value":"value1"}'
 
 or 
 
-curl -X PUT http://127.0.0.1:5000/setkey/key1 -H "Content-Type: application/json" -d "{\"value\":\"value1\"}"
+curl -X PUT http://127.0.0.1:8000/setkey/key1 -H "Content-Type: application/json" -d "{\"value\":\"value1\"}"
 ```
 
 - For getting a value for a particular key
 ``` Bash
-curl -X GET "http://127.0.0.1:5000/getkey/key1"        
+curl -X GET "http://127.0.0.1:8000/getkey/key1"        
 ```     
 
 - To show all the data in all the replicas
 ``` Bash
-curl -X GET "http://127.0.0.1:5000/show_all"        
+curl -X GET "http://127.0.0.1:8000/show_all"        
 ```   

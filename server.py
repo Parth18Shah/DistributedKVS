@@ -1,15 +1,16 @@
 from flask import Flask, request
 from nodemanager import NodeManager
 import atexit
+import sys
 
 app = Flask(__name__)
 
 node_manager = None 
 
-def create_server():
+def create_server(num_nodes=3):
     global node_manager
     if node_manager is None:
-        node_manager = NodeManager(num_nodes=3)
+        node_manager = NodeManager(num_nodes)
     @app.route('/')
     def home():
         return 'Please use /setkey and /getkey'
@@ -37,6 +38,10 @@ def create_server():
 
 if __name__ == '__main__':
     # multiprocessing.freeze_support()  # Required for Windows
-    app = create_server()
+    if len(sys.argv) > 1:
+        num_nodes = int(sys.argv[1])
+    else:
+        num_nodes = 3
+    app = create_server(num_nodes)
     app.run(host='0.0.0.0', port=8000, debug=False)
 
