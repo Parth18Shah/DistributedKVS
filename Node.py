@@ -144,6 +144,36 @@ class Node:
                         time.sleep(5)
                         message = f"GetCommandResponse:{value}".encode()
                         self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                
+                elif message.startswith("AppendDeleteCommandToLog:"):
+                    key = message.split(":")[1]
+                    self.log.append((key))
+                    self.ack_rec = 0
+                    #print(f"Node {self.node_id} recevied the command: delete key {key}")
+                    message = f"AckDeleteCommand:{key}:{self.node_id}".encode()
+                    self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                
+                elif message.startswith("AckDeleteCommand:"):
+                    key, msg_from_node_id = message.split(":")[1:]
+                    if self.node_id == self.leader_id[0]:
+                        self.ack_rec += 1
+                        #print(f"Node {self.node_id} received a ack for delete from {msg_from_node_id}. Total: {self.ack_rec}")
+                        if self.ack_rec >= self.node_count:
+                            if key in self.data_store:
+                                del self.data_store[key]
+                            time.sleep(5)
+                            if self.log:
+                                message = f"DeleteCommand:{key}:{self.node_id}".encode()
+                                self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                            self.log = []
+                
+                elif message.startswith("DeleteCommand:"):
+                    key, msg_from_node_id = message.split(":")[1:]
+                    print(f"Node {self.node_id} with {self.leader_id} and state {self.node_state} received the command: Delete key {key}")
+                    if self.node_id != self.leader_id[0]:
+                        if key in self.data_store:
+                                del self.data_store[key]
+                        self.log = []
 
             except socket.timeout:
                 if self.node_state == Node_State(1).name:
@@ -152,7 +182,7 @@ class Node:
 
                 # No leader detected, check if election is needed
                 elif time.time() - self.last_leader_timestamp > self.election_timeout:
-                    print(f"Node {self.node_id} detected no leader. Starting election for term {self.term}...")
+                    #print(f"Node {self.node_id} detected no leader. Starting election for term {self.term}...")
                     self.term += 1 
                     self.node_state = Node_State(2).name
                     self.start_election()
@@ -232,6 +262,26 @@ def create_flask_app(node_id, port):
             except Exception as e:
                 return jsonify({"error": "Unable to set the value"}), 500
 
+        def __delete_value(key):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+                    if os.name == 'nt':
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # For Windows
+                    else:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                    group = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
+                    sock.bind(("", PORT))
+                    message = f"AppendDeleteCommandToLog:{key}".encode()
+                    sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    while True:
+                        data, _ = sock.recvfrom(1024)
+                        message = data.decode()
+                        if message.startswith("DeleteCommand:"):
+                            return jsonify({"status": "success"}), 200
+            except Exception as e:
+                return jsonify({"error": "Unable to delete the value"}), 500
+
         @app.route('/setkey/<key>', methods=['PUT'])
         def setkey(key):
             value = request.json.get("value")
@@ -240,6 +290,10 @@ def create_flask_app(node_id, port):
         @app.route('/getkey/<key>', methods=['GET'])
         def getkey(key):
             return __get_value(key)
+        
+        @app.route('/deletekey/<key>', methods=['DELETE'])
+        def deletekey(key):
+            return __delete_value(key)
         
         # @app.route('/show_all', methods = ['GET'])
         # def show_all():

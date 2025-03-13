@@ -23,6 +23,10 @@ def create_server(num_nodes=3):
     @app.route('/getkey/<key>', methods=['GET'])
     def getkey(key):
         return node_manager.get_value(key)
+    
+    @app.route('/deletekey/<key>', methods=['DELETE'])
+    def deletekey(key):
+        return node_manager.delete_value(key)
 
     @app.route('/show_all', methods = ['GET'])
     def show_all():
