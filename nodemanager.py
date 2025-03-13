@@ -12,7 +12,9 @@ MULTICAST_PORT = 5007
 class NodeManager:
     def __init__(self, num_nodes=3, num_groups=2):
         self.groups = []
-        self.leader_id = [[-1]] * num_groups
+        self.leader_id = []
+        for i in range(num_groups):
+            self.leader_id.append([-1])
         self.num_groups = num_groups
         for group_no in range(num_groups):
             nodes = []
@@ -42,7 +44,6 @@ class NodeManager:
         if not key: return jsonify({"error": "Please provide a key"}), 400
 
         group_id = self.get_group(key)
-
         if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         for attempt in range(3):
             try:
@@ -64,6 +65,7 @@ class NodeManager:
         if not value: return jsonify({"error": "value not found"}), 400
 
         group_id = self.get_group(key)
+        print(f"group id: {group_id} in set with leader id: {self.leader_id}")
         if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
         get_response = self.get_value(key)
@@ -83,6 +85,30 @@ class NodeManager:
         except Exception as e:
             return jsonify({"error": "Unable to set the value"}), 500
     
+    def delete_value(self, key):
+        if not key: return jsonify({"error": "key not found"}), 400
+        group_id = self.get_group(key)
+        if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
+        prev_val = None
+        get_response = self.get_value(key)
+        if get_response[1] == 200:
+            prev_val = get_response[0].get("value")
+        else:
+            return jsonify({"error": "key does not exist in datastore"}), 400
+        try:
+            for attempt in range(3):
+                if self.groups[group_id][self.leader_id[group_id][0]].node_state != Node_State(1).name: 
+                    time.sleep(5)
+                    continue
+                leader_port = FLASK_SERVER_PORT + self.leader_id[group_id][0]
+                set_response = requests.delete( f'http://127.0.0.1:{leader_port}/deletekey/{key}')
+                if set_response.status_code == 200: return jsonify({"status": "success"}), 200
+            if prev_val:
+                self.set_values(key, prev_val) 
+            return jsonify({"error": "Failed to delete the value"}), 500       
+        except Exception as e:
+            return jsonify({"error": "Unable to delete the value"}), 500
+
     # def show_data_from_all_nodes(self):
     #     noderesponses = []       
     #     for node in self.groups[group_id]:
