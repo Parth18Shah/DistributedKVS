@@ -21,7 +21,7 @@ PORT = 5007
 
 class Node:
     def __init__(self, node_id, port, node_count, leader_id):
-        self.data_store = {'key1':'value1'}
+        self.data_store = {}
         self.node_id = node_id
         self.port = port
         self.process = None
@@ -158,7 +158,7 @@ class Node:
                     if self.node_id == self.leader_id[0]:
                         self.ack_rec += 1
                         #print(f"Node {self.node_id} received a ack for delete from {msg_from_node_id}. Total: {self.ack_rec}")
-                        if self.ack_rec >= self.majority_count:
+                        if self.ack_rec >= self.node_count:
                             if key in self.data_store:
                                 del self.data_store[key]
                             time.sleep(5)
