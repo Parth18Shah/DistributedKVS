@@ -5,57 +5,78 @@ from requests.exceptions import RequestException
 import time
 from Node import Node_State
 
+# Constant Port Values
+FLASK_SERVER_PORT = 8001
+MULTICAST_PORT = 5007
+
 class NodeManager:
-    def __init__(self, num_nodes=3, base_port=8001):
-        self.nodes = []
-        self.base_port = base_port
-        self.leader_id = [-1]
-        for i in range(num_nodes):
-            port = self.base_port + i
-            node = Node(i, port, num_nodes, self.leader_id)
-            self.nodes.append(node)
+    def __init__(self, num_nodes=3, num_groups=2):
+        self.groups = []
+        self.leader_id = []
+        for i in range(num_groups):
+            self.leader_id.append([-1])
+        self.num_groups = num_groups
+        for group_no in range(num_groups):
+            nodes = []
+            for node_id in range(num_nodes):
+                flask_server_port = FLASK_SERVER_PORT + node_id + group_no * 100
+                multicast_port = MULTICAST_PORT + group_no
+                node = Node(node_id, flask_server_port, multicast_port, num_nodes, self.leader_id[group_no])
+                nodes.append(node)
+            
+            # Connecting all nodes to the multicast group
+            for i in range(num_nodes):
+                nodes[i].join_multicast()
 
-        # Connecting all nodes to the multicast group
-        for i in range(num_nodes):
-            self.nodes[i].join_multicast()
+            # Starting the flask servers for each node
+            for i in range(num_nodes):
+                nodes[i].start()
+                
+            self.groups.append(nodes)
 
-        # Starting the flask servers for each node
-        for i in range(num_nodes):
-            self.nodes[i].start()
+    '''
+        Hash function to determine which group to approach
+    '''
+    def get_group(self, key):
+        return (ord(key[0].lower()) - 97) % self.num_groups
 
     def get_value(self, key):
         if not key: return jsonify({"error": "Please provide a key"}), 400
-        if self.leader_id[0] == -1: return jsonify({"error": "Try again later"}), 400
-        # print(f"current leader is {self.leader_id[0]}")
+
+        group_id = self.get_group(key)
+        if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         for attempt in range(3):
             try:
-                if self.nodes[self.leader_id[0]].node_state != Node_State(1).name: 
+                if self.groups[group_id][self.leader_id[group_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
                     continue
-                leader_port = self.base_port + self.leader_id[0]
+                leader_port = FLASK_SERVER_PORT + self.leader_id[group_id][0]
                 get_response = requests.get(f'http://127.0.0.1:{leader_port}/getkey/{key}')
                 if get_response.status_code == 200:
                     return get_response.json(), 200
                 time.sleep(5)
             except RequestException as e:
-                print(f"Error accessing node {self.leader_id[0]}: {e}")
+                print(f"Error accessing node {self.leader_id[group_id][0]}: {e}")
                 continue
         return jsonify({"error": "Key not found"}), 404
     
     def set_values(self, key, value):
         if not key: return jsonify({"error": "key not found"}), 400
         if not value: return jsonify({"error": "value not found"}), 400
-        if self.leader_id[0] == -1: return jsonify({"error": "Try again later"}), 400
+
+        group_id = self.get_group(key)
+        print(f"group id: {group_id} in set with leader id: {self.leader_id}")
+        if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
         get_response = self.get_value(key)
         if get_response[1] == 200:
             prev_val = get_response[0].get("value")
         try:
             for attempt in range(3):
-                if self.nodes[self.leader_id[0]].node_state != Node_State(1).name: 
+                if self.groups[group_id][self.leader_id[group_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
                     continue
-                leader_port = self.base_port + self.leader_id[0]
+                leader_port = FLASK_SERVER_PORT + self.leader_id[group_id][0]
                 set_response = requests.put( f'http://127.0.0.1:{leader_port}/setkey/{key}',json={"value": value})
                 if set_response.status_code == 200: return jsonify({"status": "success"}), 200
             if prev_val:
@@ -66,7 +87,8 @@ class NodeManager:
     
     def delete_value(self, key):
         if not key: return jsonify({"error": "key not found"}), 400
-        if self.leader_id[0] == -1: return jsonify({"error": "Try again later"}), 400
+        group_id = self.get_group(key)
+        if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
         get_response = self.get_value(key)
         if get_response[1] == 200:
@@ -75,10 +97,10 @@ class NodeManager:
             return jsonify({"error": "key does not exist in datastore"}), 400
         try:
             for attempt in range(3):
-                if self.nodes[self.leader_id[0]].node_state != Node_State(1).name: 
+                if self.groups[group_id][self.leader_id[group_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
                     continue
-                leader_port = self.base_port + self.leader_id[0]
+                leader_port = FLASK_SERVER_PORT + self.leader_id[group_id][0]
                 set_response = requests.delete( f'http://127.0.0.1:{leader_port}/deletekey/{key}')
                 if set_response.status_code == 200: return jsonify({"status": "success"}), 200
             if prev_val:
@@ -89,7 +111,7 @@ class NodeManager:
 
     # def show_data_from_all_nodes(self):
     #     noderesponses = []       
-    #     for node in self.nodes:
+    #     for node in self.groups[group_id]:
     #         try:
     #             # starttime = time.time()
     #             show_all_response = requests.get(f'http://127.0.0.1:{node.port}/show_all')
@@ -107,8 +129,9 @@ class NodeManager:
     
     def stop_nodes(self):        
         print("Stopping all nodes...")
-        for node in self.nodes:
-            node.stop()
+        for groups in self.groups:
+            for node in groups:
+                node.stop()
 
         print("All nodes stopped successfully")
         return jsonify({"status": "success"}), 200

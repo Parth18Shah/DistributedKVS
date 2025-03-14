@@ -17,13 +17,13 @@ class Node_State(Enum):
 
 # Constants for multicast communication
 MULTICAST_GROUP = "224.1.1.1"
-PORT = 5007
 
 class Node:
-    def __init__(self, node_id, port, node_count, leader_id):
+    def __init__(self, node_id, flask_server_port, multicast_port, node_count, leader_id):
         self.data_store = {}
         self.node_id = node_id
-        self.port = port
+        self.flask_server_port = flask_server_port
+        self.multicast_port = multicast_port
         self.process = None
         self.node_state = Node_State(3).name
         self.node_count = node_count
@@ -42,10 +42,10 @@ class Node:
         print('Starting Node...')
         self.process = multiprocessing.Process(
             target=create_flask_app,
-            args=(self.node_id, self.port)
+            args=(self.node_id, self.flask_server_port, self.multicast_port)
         )
         self.process.start()
-        print(f'Node {self.node_id} started with pid: {self.process.pid} on port: {self.port}')
+        print(f'Node {self.node_id} started with pid: {self.process.pid} on port: {self.flask_server_port}')
         time.sleep(5)  # Give Flask time to initialize
     
     def join_multicast(self):
@@ -68,7 +68,7 @@ class Node:
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # For Windows
         else:
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        self.sock.bind(("", PORT))
+        self.sock.bind(("", self.multicast_port))
         print(f"Node {self.node_id} Connected to Multicast socket")
         # Join multicast group
         mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
@@ -114,7 +114,7 @@ class Node:
                     self.ack_rec = 0
                     # print(f"Node {self.node_id} recevied the command: set key {key} to value {value}")
                     message = f"AckSetCommand:{key}:{value}:{self.node_id}".encode()
-                    self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                       
                 elif message.startswith("AckSetCommand:"):
                     key, value, msg_from_node_id = message.split(":")[1:]
@@ -126,7 +126,7 @@ class Node:
                             time.sleep(5)
                             if self.log:
                                 message = f"SetCommand:{key}:{value}:{self.node_id}".encode()
-                                self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                                self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                             self.log = []
                 
                 elif message.startswith("SetCommand:"):
@@ -142,8 +142,8 @@ class Node:
                     if self.node_id == self.leader_id[0]:
                         value = self.data_store.get(key, "Key not found")
                         time.sleep(5)
-                        message = f"GetCommandResponse:{value}".encode()
-                        self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                        message = f"GetCommandResponse:{key}:{value}".encode()
+                        self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                 
                 elif message.startswith("AppendDeleteCommandToLog:"):
                     key = message.split(":")[1]
@@ -151,7 +151,7 @@ class Node:
                     self.ack_rec = 0
                     #print(f"Node {self.node_id} recevied the command: delete key {key}")
                     message = f"AckDeleteCommand:{key}:{self.node_id}".encode()
-                    self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                 
                 elif message.startswith("AckDeleteCommand:"):
                     key, msg_from_node_id = message.split(":")[1:]
@@ -164,7 +164,7 @@ class Node:
                             time.sleep(5)
                             if self.log:
                                 message = f"DeleteCommand:{key}:{self.node_id}".encode()
-                                self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+                                self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                             self.log = []
                 
                 elif message.startswith("DeleteCommand:"):
@@ -192,7 +192,7 @@ class Node:
         Sends a unicast vote response to the candidate.
         """
         response = f"VoteGranted:{self.node_id}:{candidate_id}".encode()
-        self.sock.sendto(response, (MULTICAST_GROUP, PORT))
+        self.sock.sendto(response, (MULTICAST_GROUP, self.multicast_port))
         self.term = current_election_term
 
     def start_election(self):
@@ -201,16 +201,16 @@ class Node:
         """
         self.votes_received = 1  # Vote for itself
         message = f"RequestVote:{self.node_id}:{self.term}".encode()
-        self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+        self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
     
     def announce_leadership(self, term):
         """
         Announces that this node has become the leader.
         """
         message = f"LeaderElected:{self.node_id}:{term}".encode()
-        self.sock.sendto(message, (MULTICAST_GROUP, PORT))
+        self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
 
-def create_flask_app(node_id, port):
+def create_flask_app(node_id, flask_server_port, multicast_port):
     
     try:
         app = Flask(__name__)
@@ -226,18 +226,19 @@ def create_flask_app(node_id, port):
                     # Join multicast group
                     group = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
-                    sock.bind(("", PORT))
+                    sock.bind(("", multicast_port))
 
                     message = f"GetCommand:{key}".encode()
-                    sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    sock.sendto(message, (MULTICAST_GROUP, multicast_port))
                     while True:
                         data, _ = sock.recvfrom(1024)
                         message = data.decode()
                         if message.startswith("GetCommandResponse:"):
-                            value = message.split(":")[1]
-                            if value == "Key not found": 
-                                return jsonify({"error": "key not found"}), 400
-                            return jsonify({"value": value}), 200
+                            retrieved_key, value = message.split(":")[1:]
+                            if key == retrieved_key:
+                                if value == "Key not found": 
+                                    return jsonify({"error": "key not found"}), 400
+                                return jsonify({"value": value}), 200
             except Exception as e:
                 print(f"Exception in get function: {e}")
                 return jsonify({"error": f"Unable to fetch the value from node with error: {e}"}), 501
@@ -251,9 +252,9 @@ def create_flask_app(node_id, port):
                         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
                     group = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
-                    sock.bind(("", PORT))
+                    sock.bind(("", multicast_port))
                     message = f"AppendSetCommandToLog:{key}:{value}".encode()
-                    sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    sock.sendto(message, (MULTICAST_GROUP, multicast_port))
                     while True:
                         data, _ = sock.recvfrom(1024)
                         message = data.decode()
@@ -271,9 +272,9 @@ def create_flask_app(node_id, port):
                         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
                     group = struct.pack("4sl", socket.inet_aton(MULTICAST_GROUP), socket.INADDR_ANY)
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group)
-                    sock.bind(("", PORT))
+                    sock.bind(("", multicast_port))
                     message = f"AppendDeleteCommandToLog:{key}".encode()
-                    sock.sendto(message, (MULTICAST_GROUP, PORT))
+                    sock.sendto(message, (MULTICAST_GROUP, multicast_port))
                     while True:
                         data, _ = sock.recvfrom(1024)
                         message = data.decode()
@@ -303,10 +304,10 @@ def create_flask_app(node_id, port):
         def home():
             return f'Welcome to Node {node_id}'
         
-        server = make_server('0.0.0.0', port, app)
+        server = make_server('0.0.0.0', flask_server_port, app)
         server.serve_forever()
     except Exception as e:
-        print(f"Error starting Node {node_id} on port {port}: {e}")
+        print(f"Error starting Node {node_id} on port {flask_server_port}: {e}")
 
 
         
