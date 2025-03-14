@@ -142,7 +142,7 @@ class Node:
                     if self.node_id == self.leader_id[0]:
                         value = self.data_store.get(key, "Key not found")
                         time.sleep(5)
-                        message = f"GetCommandResponse:{value}".encode()
+                        message = f"GetCommandResponse:{key}:{value}".encode()
                         self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
                 
                 elif message.startswith("AppendDeleteCommandToLog:"):
@@ -234,10 +234,11 @@ def create_flask_app(node_id, flask_server_port, multicast_port):
                         data, _ = sock.recvfrom(1024)
                         message = data.decode()
                         if message.startswith("GetCommandResponse:"):
-                            value = message.split(":")[1]
-                            if value == "Key not found": 
-                                return jsonify({"error": "key not found"}), 400
-                            return jsonify({"value": value}), 200
+                            retrieved_key, value = message.split(":")[1:]
+                            if key == retrieved_key:
+                                if value == "Key not found": 
+                                    return jsonify({"error": "key not found"}), 400
+                                return jsonify({"value": value}), 200
             except Exception as e:
                 print(f"Exception in get function: {e}")
                 return jsonify({"error": f"Unable to fetch the value from node with error: {e}"}), 501
