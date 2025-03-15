@@ -1,13 +1,10 @@
-from Node import Node
 from flask import jsonify
 import requests
 from requests.exceptions import RequestException
 import time
-from Node import Node_State
-
-# Constant Port Values
-FLASK_SERVER_PORT = 8001
-MULTICAST_PORT = 5007
+from Node.Node import Node_State
+from constants import *
+from Node.MulticastServer import MulticastServer
 
 class NodeManager:
     def __init__(self, num_nodes=3, num_groups=2):
@@ -21,7 +18,8 @@ class NodeManager:
             for node_id in range(num_nodes):
                 flask_server_port = FLASK_SERVER_PORT + node_id + group_no * 100
                 multicast_port = MULTICAST_PORT + group_no
-                node = Node(node_id, flask_server_port, multicast_port, num_nodes, self.leader_id[group_no])
+                # Creating Multicast Server object which is child of parent class Node
+                node = MulticastServer(node_id, flask_server_port, multicast_port, num_nodes, self.leader_id[group_no])
                 nodes.append(node)
             
             # Connecting all nodes to the multicast group
@@ -30,7 +28,7 @@ class NodeManager:
 
             # Starting the flask servers for each node
             for i in range(num_nodes):
-                nodes[i].start()
+                nodes[i].start_flask_server()
                 
             self.groups.append(nodes)
 
@@ -42,7 +40,6 @@ class NodeManager:
 
     def get_value(self, key):
         if not key: return jsonify({"error": "Please provide a key"}), 400
-
         group_id = self.get_group(key)
         if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         for attempt in range(3):
@@ -63,9 +60,7 @@ class NodeManager:
     def set_values(self, key, value):
         if not key: return jsonify({"error": "key not found"}), 400
         if not value: return jsonify({"error": "value not found"}), 400
-
         group_id = self.get_group(key)
-        print(f"group id: {group_id} in set with leader id: {self.leader_id}")
         if self.leader_id[group_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
         get_response = self.get_value(key)
@@ -109,6 +104,7 @@ class NodeManager:
         except Exception as e:
             return jsonify({"error": "Unable to delete the value"}), 500
 
+    # TODO: Rewrite logic to show all items in datastore
     # def show_data_from_all_nodes(self):
     #     noderesponses = []       
     #     for node in self.groups[group_id]:
@@ -131,7 +127,6 @@ class NodeManager:
         print("Stopping all nodes...")
         for groups in self.groups:
             for node in groups:
-                node.stop()
-
+                node.stop_servers()
         print("All nodes stopped successfully")
         return jsonify({"status": "success"}), 200
