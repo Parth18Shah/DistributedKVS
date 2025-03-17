@@ -3,6 +3,7 @@ from werkzeug.serving import make_server
 import socket
 import struct
 import os
+import json
 from constants import *
 
 def create_node_server(node_id, flask_server_port, multicast_port):
@@ -80,9 +81,22 @@ def create_node_server(node_id, flask_server_port, multicast_port):
         def deletekey(key):
             return __delete_value(key)
         
-        # @app.route('/show_all', methods = ['GET'])
-        # def show_all():
-        #     return jsonify({"node_id": node_id, "data": dict(data_store)}), 200
+        @app.route('/show_all', methods = ['GET'])
+        def show_all():
+            try:
+                with __create_socket() as sock:
+                    message = f"RetrieveAllCommand:".encode()
+                    sock.sendto(message, (MULTICAST_GROUP, multicast_port))
+                    while True:
+                        data, _ = sock.recvfrom(10000)
+                        message = data.decode()
+                        if message.startswith("RetrieveAllCommandResponse"):
+                            string_data = message.split("$")[1]
+                            retrieved_values = json.loads(string_data)
+                            return jsonify(retrieved_values), 200
+            except Exception as e:
+                print(f"Exception in get function: {e}")
+                return jsonify({"error": f"Unable to fetch the value from node with error: {e}"}), 501
         
         @app.route('/', methods=['GET'])
         def home():

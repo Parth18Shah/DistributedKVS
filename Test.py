@@ -11,6 +11,7 @@ fake = Faker()
 data = {}
 NUMBER_OF_TESTCASES = 1000
 NUMBER_OF_NODES = 3
+NUMBER_OF_SHARDS = 2
 processes = []
 
 def generate_data():
@@ -27,13 +28,17 @@ def get_input():
     '''
     global NUMBER_OF_TESTCASES
     global NUMBER_OF_NODES
+    global NUMBER_OF_SHARDS
     testcase_count = input("Enter the number of test cases:")
-    nodes_count = input("Enter the number of nodes:")
+    shards_count = input("Enter the number of shards:")
+    nodes_count = input("Enter the number of nodes in each shard:")
 
     if testcase_count and testcase_count.isdigit():
         NUMBER_OF_TESTCASES = int(testcase_count)
     if nodes_count and nodes_count.isdigit():
         NUMBER_OF_NODES = int(nodes_count)
+    if shards_count and shards_count.isdigit():
+        NUMBER_OF_SHARDS = int(shards_count)
 
 def calc_aggregate_time():
     '''
@@ -81,21 +86,22 @@ def test_server():
         data = generate_data()
         # Starting the server
         # For Mac
-        # server_process = subprocess.Popen(["python", "server.py", str(NUMBER_OF_NODES)])
+        # server_process = subprocess.Popen(["python", "server.py", str(NUMBER_OF_NODES), str(NUMBER_OF_SHARDS)])
         # For Windows
         python_executable = sys.executable 
-        server_process = subprocess.Popen([python_executable, "RequestManager.py", str(NUMBER_OF_NODES)])
+        server_process = subprocess.Popen([python_executable, "RequestManager.py", str(NUMBER_OF_NODES), str(NUMBER_OF_SHARDS)])
         processes.append(server_process)
-        time.sleep(35)
+        wait_time = NUMBER_OF_SHARDS * 10 + 20 
+        time.sleep(wait_time)
 
         # Setting the values
         for key, value in data.items():
-            # For Mac
-            # set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'"
-            # For Windows
-            set_command = f'curl -X PUT http://127.0.0.1:8000/setkey/{key} -H "Content-Type:application/json" -d "{{\\"value\\": \\"{value}\\"}}"'
+            if os.name == 'nt':
+                set_command = f'curl -X PUT http://127.0.0.1:8000/setkey/{key} -H "Content-Type:application/json" -d "{{\\"value\\": \\"{value}\\"}}"' # For Windows
+            else:
+                set_command = f"curl -X PUT http://127.0.0.1:8000/setkey/{key} -H \"Content-Type:application/json\" -d '{{\"value\": \"{value}\"}}'" # For Mac
             os.system(set_command)
-            #time.sleep(5)
+            time.sleep(5)
         time.sleep(5)
 
         print('\n Done with setting values')
@@ -110,8 +116,8 @@ def test_server():
 
         time.sleep(5)
         # Checking the show all command
-        # show_all_command =  f"curl -X GET http://127.0.0.1:8000/show_all"
-        # os.system(show_all_command)
+        show_all_command =  f"curl -X GET http://127.0.0.1:8000/show_all"
+        os.system(show_all_command)
         
     except:
         with open("log.txt", "a") as f:
@@ -134,4 +140,4 @@ atexit.register(cleanup)
 if __name__ == "__main__":
     get_input()
     test_server()
-    #calc_aggregate_time()
+    # calc_aggregate_time()

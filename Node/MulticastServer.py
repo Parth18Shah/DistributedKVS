@@ -4,6 +4,7 @@ import socket
 import struct
 import random
 import os
+import json
 from constants import *
 from Node.Node import Node
 
@@ -134,6 +135,14 @@ class MulticastServer(Node):
                         if key in self.data_store:
                                 del self.data_store[key]
                         self.log = []
+
+                elif message.startswith("RetrieveAllCommand:"):
+                    print(f"Node {self.node_id} with {self.leader_id} and state {self.node_state} received the command: get all keys")
+                    if self.node_id == self.leader_id[0]:
+                        data_store_string = json.dumps(self.data_store)
+                        time.sleep(5)
+                        message = f"RetrieveAllCommandResponse${data_store_string}".encode()
+                        self.sock.sendto(message, (MULTICAST_GROUP, self.multicast_port))
 
             except socket.timeout:
                 if self.node_state == Node_State(1).name:
