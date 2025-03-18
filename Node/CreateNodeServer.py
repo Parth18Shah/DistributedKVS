@@ -36,8 +36,8 @@ def create_node_server(node_id, flask_server_port, multicast_port):
                             retrieved_key, value = message.split(":")[1:]
                             if key == retrieved_key:
                                 if value == "Key not found": 
-                                    return jsonify({"error": "key not found"}), 400
-                                return jsonify({"value": value}), 200
+                                    return jsonify({"error": "Key not found"}), 400
+                                return jsonify({"status": "success", key: value}), 200
             except Exception as e:
                 print(f"Exception in get function: {e}")
                 return jsonify({"error": f"Unable to fetch the value from node with error: {e}"}), 501

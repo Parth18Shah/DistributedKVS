@@ -112,7 +112,15 @@ def test_server():
             random_key = random.choice(list(data.keys()))
             get_command =  f"curl -X GET http://127.0.0.1:8000/getkey/{random_key}"
             os.system(get_command)
-            #time.sleep(5)
+            time.sleep(5)
+        
+        # Delete the values
+        for _ in range(NUMBER_OF_TESTCASES//2):
+            random_key = random.choice(list(data.keys()))
+            delete_command =  f"curl -X GET http://127.0.0.1:8000/deletekey/{random_key}"
+            os.system(delete_command)
+            time.sleep(5)
+
 
         time.sleep(5)
         # Checking the show all command

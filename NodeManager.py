@@ -58,8 +58,8 @@ class NodeManager:
         return jsonify({"error": "Key not found"}), 404
     
     def set_values(self, key, value):
-        if not key: return jsonify({"error": "key not found"}), 400
-        if not value: return jsonify({"error": "value not found"}), 400
+        if not key: return jsonify({"error": "Key not found"}), 400
+        if not value: return jsonify({"error": "Value not found"}), 400
         shard_id = self.get_shard(key)
         if self.leader_id[shard_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
@@ -73,7 +73,7 @@ class NodeManager:
                     continue
                 leader_port = FLASK_SERVER_PORT + self.leader_id[shard_id][0]+ shard_id * 100
                 set_response = requests.put( f'http://127.0.0.1:{leader_port}/setkey/{key}',json={"value": value})
-                if set_response.status_code == 200: return jsonify({"status": "success"}), 200
+                if set_response.status_code == 200: return jsonify({"status": "success", "message":"Set the value successfully"}), 200
             if prev_val:
                 self.set_values(key, prev_val) 
             return jsonify({"error": "Failed to set the value"}), 500       
@@ -81,7 +81,7 @@ class NodeManager:
             return jsonify({"error": "Unable to set the value"}), 500
     
     def delete_value(self, key):
-        if not key: return jsonify({"error": "key not found"}), 400
+        if not key: return jsonify({"error": "Key not found"}), 400
         shard_id = self.get_shard(key)
         if self.leader_id[shard_id][0] == -1: return jsonify({"error": "Try again later"}), 400
         prev_val = None
@@ -97,7 +97,7 @@ class NodeManager:
                     continue
                 leader_port = FLASK_SERVER_PORT + self.leader_id[shard_id][0] + shard_id * 100
                 set_response = requests.delete( f'http://127.0.0.1:{leader_port}/deletekey/{key}')
-                if set_response.status_code == 200: return jsonify({"status": "success"}), 200
+                if set_response.status_code == 200: return jsonify({"status": "success", "message":"Deleted the value successfully"}), 200
             if prev_val:
                 self.set_values(key, prev_val) 
             return jsonify({"error": "Failed to delete the value"}), 500       
@@ -118,7 +118,7 @@ class NodeManager:
                     combined_data['error'].append(f"Unable to fetch data from Shard {shard_id}")
         except RequestException as e:
             combined_data.append({"error": f"Cannot connect to Shard: {str(e)}"})
-        return jsonify({"status": "success", "value": combined_data}), 200
+        return jsonify({"Combined Data": combined_data}), 200
     
     def stop_nodes(self):        
         print("Stopping all nodes...")
