@@ -34,9 +34,17 @@ class NodeManager:
 
     '''
         Hash function to determine which shard to approach
+        (Using FNV Non-Cryptographic Hash Algorithm)
     '''
     def get_shard(self, key):
-        return (ord(key[0].lower()) - 97) % self.num_shards
+        hash_value = 2166136261  # Start hash value with FNV offset basis
+        fnv_prime = 16777619
+
+        for char in key:
+            hash_value ^= ord(char)
+            hash_value *= fnv_prime
+            hash_value &= 0xFFFFFFFF  # Ensure it remains a 32-bit hash
+        return hash_value % self.num_shards
 
     def get_value(self, key):
         if not key: return jsonify({"error": "Please provide a key"}), 400
