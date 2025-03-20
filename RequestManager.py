@@ -1,16 +1,18 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from NodeManager import NodeManager
 import atexit
 import sys
-
+import queue, time
 app = Flask(__name__)
 
 node_manager = None 
+request_queue = queue.deque()
+responses = {}
 
 def create_server(num_nodes=3, num_shards=2):
     global node_manager
     if node_manager is None:
-        node_manager = NodeManager(num_nodes, num_shards)
+        node_manager = NodeManager(request_queue, responses, num_nodes, num_shards)
     @app.route('/')
     def home():
         return 'Please use /setkey and /getkey'
@@ -18,17 +20,37 @@ def create_server(num_nodes=3, num_shards=2):
     @app.route('/setkey/<key>', methods=['PUT'])
     def setkey(key):
         value = request.json.get("value")
-        return node_manager.set_values(key, value)
+        request_id = node_manager.add_to_queue("set", key, value)
+        while request_id not in responses: 
+            time.sleep(5) 
+        response = responses[request_id]
+        status_code = response["status_code"]
+        del response["status_code"]
+        del responses[request_id]
+        return jsonify(response), status_code
 
     @app.route('/getkey/<key>', methods=['GET'])
     def getkey(key):
-        return node_manager.get_value(key)
+        request_id = node_manager.add_to_queue("get", key, None)
+        while request_id not in responses: 
+            time.sleep(5) 
+        response = responses[request_id] 
+        status_code = response["status_code"]
+        del response["status_code"]
+        del responses[request_id]
+        return jsonify(response), status_code
     
     @app.route('/deletekey/<key>', methods=['DELETE'])
     def deletekey(key):
-        return node_manager.delete_value(key)
+        request_id = node_manager.add_to_queue("delete", key, None)
+        while request_id not in responses:
+            time.sleep(5)
+        response = responses[request_id] 
+        status_code = response["status_code"]
+        del response["status_code"]
+        del responses[request_id]
+        return jsonify(response), status_code
 
-    # TODO: Rewrite logic to show all items in datastore
     @app.route('/show_all', methods = ['GET'])
     def show_all():
         return node_manager.show_data_from_all_shards()

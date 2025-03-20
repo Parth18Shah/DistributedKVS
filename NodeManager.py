@@ -6,10 +6,15 @@ from Node.Node import Node_State
 from constants import *
 from Node.MulticastServer import MulticastServer
 from collections import defaultdict
+import threading
+
 class NodeManager:
-    def __init__(self, num_nodes=3, num_shards=2):
+    def __init__(self, request_queue, response_dict, num_nodes=3, num_shards=2):
         self.shards = []
         self.leader_id = []
+        self.request_queue = request_queue
+        self.response_dict = response_dict
+        self.request_id = 0
         for i in range(num_shards):
             self.leader_id.append([-1])
         self.num_shards = num_shards
@@ -32,6 +37,27 @@ class NodeManager:
                 
             self.shards.append(nodes)
 
+        threading.Thread(target=self.process_request, daemon=True).start()
+
+    def process_request(self):
+        while True:
+            if not self.request_queue: continue
+
+            request_id,operation, key, value = self.request_queue.popleft()
+            if operation == "set":
+                response = self.set_values(key, value)
+            elif operation == "get":
+                response = self.get_value(key)
+            elif operation == "delete":
+                response = self.delete_value(key)
+            print(f"Response for request {request_id}: {response}")
+            self.response_dict[request_id] = response
+
+    def add_to_queue(self, operation, key, value):
+        self.request_queue.append((self.request_id, operation, key, value))
+        self.request_id += 1
+        return self.request_id - 1
+    
     '''
         Hash function to determine which shard to approach
         (Using FNV Non-Cryptographic Hash Algorithm)
@@ -47,10 +73,10 @@ class NodeManager:
         return hash_value % self.num_shards
 
     def get_value(self, key):
-        if not key: return jsonify({"error": "Please provide a key"}), 400
+        if not key: return {"error": "Please provide a key", "status_code": 400}
         shard_id = self.get_shard(key)
-        if self.leader_id[shard_id][0] == -1: return jsonify({"error": "Try again later"}), 400
-        for attempt in range(3):
+        if self.leader_id[shard_id][0] == -1: return {"error": "Try again later", "status_code": 400}
+        for attempt in range(RETRIES_ALLOWED):
             try:
                 if self.shards[shard_id][self.leader_id[shard_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
@@ -58,61 +84,61 @@ class NodeManager:
                 leader_port = FLASK_SERVER_PORT + self.leader_id[shard_id][0] + shard_id * 100
                 get_response = requests.get(f'http://127.0.0.1:{leader_port}/getkey/{key}')
                 if get_response.status_code == 200:
-                    return get_response.json(), 200
-                time.sleep(5)
+                    get_response = get_response.json()
+                    get_response["status_code"] = 200
+                    return get_response
             except RequestException as e:
                 print(f"Error accessing node {self.leader_id[shard_id][0]}: {e}")
                 continue
-        return jsonify({"error": "Key not found"}), 404
+        return {"error": "Key not found", "status_code": 404}
     
     def set_values(self, key, value):
-        if not key: return jsonify({"error": "Key not found"}), 400
-        if not value: return jsonify({"error": "Value not found"}), 400
+        if not key: return {"error": "Key not found", "status_code": 400}
+        if not value: return {"error": "Value not found", "status_code": 400}
         shard_id = self.get_shard(key)
-        if self.leader_id[shard_id][0] == -1: return jsonify({"error": "Try again later"}), 400
+        if self.leader_id[shard_id][0] == -1: return {"error": "Try again later", "status_code": 400}
         prev_val = None
         get_response = self.get_value(key)
-        if get_response[1] == 200:
-            prev_val = get_response[0].get("value")
+        if get_response["status_code"] == 200:
+            prev_val = get_response[key]
         try:
-            for attempt in range(3):
+            for attempt in range(RETRIES_ALLOWED):
                 if self.shards[shard_id][self.leader_id[shard_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
                     continue
                 leader_port = FLASK_SERVER_PORT + self.leader_id[shard_id][0]+ shard_id * 100
                 set_response = requests.put( f'http://127.0.0.1:{leader_port}/setkey/{key}',json={"value": value})
-                if set_response.status_code == 200: return jsonify({"status": "success", "message":"Set the value successfully"}), 200
+                if set_response.status_code == 200: return {"status": "success", "message":"Set the value successfully", "status_code": 200}
             if prev_val:
                 self.set_values(key, prev_val) 
-            return jsonify({"error": "Failed to set the value"}), 500       
+            return {"error": "Failed to set the value", "status_code": 500}    
         except Exception as e:
-            return jsonify({"error": "Unable to set the value"}), 500
+            return {"error": "Unable to set the value", "status_code": 500}
     
     def delete_value(self, key):
-        if not key: return jsonify({"error": "Key not found"}), 400
+        if not key: return {"error": "Key not found", "status_code": 400}
         shard_id = self.get_shard(key)
-        if self.leader_id[shard_id][0] == -1: return jsonify({"error": "Try again later"}), 400
+        if self.leader_id[shard_id][0] == -1: return {"error": "Try again later", "status_code": 400}
         prev_val = None
         get_response = self.get_value(key)
-        if get_response[1] == 200:
-            prev_val = get_response[0].get("value")
+        if get_response["status_code"] == 200:
+            prev_val = get_response[key]
         else:
-            return jsonify({"error": "key does not exist in datastore"}), 400
+            return {"error": "key does not exist in datastore", "status_code": 400}
         try:
-            for attempt in range(3):
+            for attempt in range(RETRIES_ALLOWED):
                 if self.shards[shard_id][self.leader_id[shard_id][0]].node_state != Node_State(1).name: 
                     time.sleep(5)
                     continue
                 leader_port = FLASK_SERVER_PORT + self.leader_id[shard_id][0] + shard_id * 100
                 set_response = requests.delete( f'http://127.0.0.1:{leader_port}/deletekey/{key}')
-                if set_response.status_code == 200: return jsonify({"status": "success", "message":"Deleted the value successfully"}), 200
+                if set_response.status_code == 200: return {"status": "success", "message":"Deleted the value successfully", "status_code": 200}
             if prev_val:
                 self.set_values(key, prev_val) 
-            return jsonify({"error": "Failed to delete the value"}), 500       
+            return {"error": "Failed to delete the value", "status_code": 500}       
         except Exception as e:
-            return jsonify({"error": "Unable to delete the value"}), 500
+            return {"error": "Unable to delete the value", "status_code": 500}
 
-    # TODO: Rewrite logic to show all items in datastore
     def show_data_from_all_shards(self):
         combined_data = defaultdict(list)
         try:   

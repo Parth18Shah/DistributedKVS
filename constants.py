@@ -12,3 +12,5 @@ MULTICAST_GROUP = "224.1.1.1"
 # Constant Port Values
 FLASK_SERVER_PORT = 8001
 MULTICAST_PORT = 5007
+
+RETRIES_ALLOWED = 3 # Number of times to retry a request
