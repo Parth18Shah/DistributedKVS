@@ -9,6 +9,9 @@ from constants import *
 def create_node_server(node_id, flask_server_port, multicast_port):
     
     def __create_socket():
+        """
+        Private function to create a socket used for multicast communication
+        """
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         if os.name == 'nt':
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # For Windows

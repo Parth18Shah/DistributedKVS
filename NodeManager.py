@@ -40,9 +40,13 @@ class NodeManager:
         threading.Thread(target=self.process_request, daemon=True).start()
 
     def process_request(self):
+        """
+        A background thread to process requests in a FIFO manner using a queue
+        Calls the appropriate function based on the operation
+        Adds the response to the response dictionary
+        """
         while True:
             if not self.request_queue: continue
-
             request_id,operation, key, value = self.request_queue.popleft()
             if operation == "set":
                 response = self.set_values(key, value)
@@ -50,7 +54,6 @@ class NodeManager:
                 response = self.get_value(key)
             elif operation == "delete":
                 response = self.delete_value(key)
-            print(f"Response for request {request_id}: {response}")
             self.response_dict[request_id] = response
 
     def add_to_queue(self, operation, key, value):
@@ -58,11 +61,13 @@ class NodeManager:
         self.request_id += 1
         return self.request_id - 1
     
-    '''
+    def get_shard(self, key):
+        """
         Hash function to determine which shard to approach
         (Using FNV Non-Cryptographic Hash Algorithm)
-    '''
-    def get_shard(self, key):
+        Input: the key
+        Output: the shard id associated with the key
+        """
         hash_value = 2166136261  # Start hash value with FNV offset basis
         fnv_prime = 16777619
 
@@ -73,6 +78,11 @@ class NodeManager:
         return hash_value % self.num_shards
 
     def get_value(self, key):
+        """
+        Function to fetch the value of a key if it exists
+        Input: the key
+        Output: the value of the key    
+        """
         if not key: return {"error": "Please provide a key", "status_code": 400}
         shard_id = self.get_shard(key)
         if self.leader_id[shard_id][0] == -1: return {"error": "Try again later", "status_code": 400}
@@ -93,6 +103,11 @@ class NodeManager:
         return {"error": "Key not found", "status_code": 404}
     
     def set_values(self, key, value):
+        """
+        Function to set the value of a key
+        Input: the key and the value
+        Output: Whether the value was set or not
+        """
         if not key: return {"error": "Key not found", "status_code": 400}
         if not value: return {"error": "Value not found", "status_code": 400}
         shard_id = self.get_shard(key)
@@ -116,6 +131,11 @@ class NodeManager:
             return {"error": "Unable to set the value", "status_code": 500}
     
     def delete_value(self, key):
+        """
+        Function to delete the value of a key
+        Input: the key
+        Output: Whether the value was deleted or not
+        """
         if not key: return {"error": "Key not found", "status_code": 400}
         shard_id = self.get_shard(key)
         if self.leader_id[shard_id][0] == -1: return {"error": "Try again later", "status_code": 400}
@@ -140,6 +160,11 @@ class NodeManager:
             return {"error": "Unable to delete the value", "status_code": 500}
 
     def show_data_from_all_shards(self):
+        """
+        Function to show the data from all shards (Primary used for testing purposes)
+        Input: None
+        Output: The combined data from all shards
+        """
         combined_data = defaultdict(list)
         try:   
             for shard_id, leader_id in enumerate(self.leader_id):
@@ -154,7 +179,10 @@ class NodeManager:
             combined_data.append({"error": f"Cannot connect to Shard: {str(e)}"})
         return jsonify({"Combined Data": combined_data}), 200
     
-    def stop_nodes(self):        
+    def stop_nodes(self):   
+        """
+        Function to stop all the nodes(flask servers + multicast servers) for smooth shutdown of the system
+        """     
         print("Stopping all nodes...")
         for groups in self.shards:
             for node in groups:
