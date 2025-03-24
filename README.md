@@ -1,9 +1,5 @@
 # Distributed Key Value Store
 
-About the Project:
-
-
-
 Steps to Setup:
 
 ### 1) Creating a virtual environment
@@ -48,6 +44,17 @@ python server.py
     ```   
 
 - To test all of them together (using the Test Script we have created)
+    - Prerequisite (For RabbitMQ Integration- "queue_br" branch) 
+    
+        1) Install and Start Docker Engine.
+
+        2) Then, run the following on a terminal
+        ``` Bash
+        docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4.0-management   
+        ``` 
+
+    On a separate terminal: 
     ``` Bash
     python Test.py       
     ``` 
+

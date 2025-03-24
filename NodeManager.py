@@ -17,7 +17,9 @@ class NodeManager:
         self.request_queue = request_queue
         self.response_dict = response_dict
         self.request_id = 0
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+
+        # Connect to RabbitMQ server
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=0))
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue='datastoreoperationqueue')
     
@@ -42,46 +44,49 @@ class NodeManager:
                 nodes[i].start_flask_server()
                 
             self.shards.append(nodes)
+        
+        threading.Thread(target=self.process_request, daemon=True).start()
 
-        self.channel.basic_consume(queue='datastoreoperationqueue', on_message_callback=self.process_request, auto_ack=True)
-        self.channel.start_consuming()
-        #threading.Thread(target=self.process_request, daemon=True).start()
-
-    def process_request(self, ch, method, properties, body):
+    def process_request(self):
         """
         A background thread to process requests in a FIFO manner using a queue
         Calls the appropriate function based on the operation
         Adds the response to the response dictionary
         """
-        print(f" [x] Received {body}")
-        message = json.loads(body) 
-        request_id, operation, key, value = message
-        if operation == "set":
-            response = self.set_values(key, value)
-        elif operation == "get":
-            response = self.get_value(key)
-        elif operation == "delete":
-            response = self.delete_value(key)
-        self.response_dict[request_id] = response
+        def callback(ch, method, properties, body):
+            message = json.loads(body)
+            request_id, operation, key, value = message
+            if operation == "set":
+                response = self.set_values(key, value)
+            elif operation == "get":
+                response = self.get_value(key)
+            elif operation == "delete":
+                response = self.delete_value(key)
+            self.response_dict[request_id] = response
 
-        #while True:
-            #if not self.request_queue: continue
-            #request_id,operation, key, value = self.request_queue.popleft()
-            
-            # if operation == "set":
-            #     response = self.set_values(key, value)
-            # elif operation == "get":
-            #     response = self.get_value(key)
-            # elif operation == "delete":
-            #     response = self.delete_value(key)
-            # self.response_dict[request_id] = response
-
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+        channel.basic_consume(queue='datastoreoperationqueue', on_message_callback=callback, auto_ack=True)
+        channel.start_consuming()
+        
     def add_to_queue(self, operation, key, value):
-        message = (self.request_id, operation, key, value)
-        self.channel.basic_publish(exchange='', routing_key='datastoreoperationqueue', body=json.dumps(message))
-        #self.request_queue.append((self.request_id, operation, key, value))
-        self.request_id += 1
-        return self.request_id - 1
+        """
+        Function to add a request to the queue
+        Input: the operation, key and value
+        Output: the request id
+        """
+        try:    
+            message = (self.request_id, operation, key, value)
+            self.channel.basic_publish(exchange='', routing_key='datastoreoperationqueue', body=json.dumps(message))
+        except pika.exceptions.ConnectionWrongStateError as e:
+            self.response_dict[self.request_id] = {"error": "Internal Server Error", "status_code": 500}
+        except pika.exceptions.AMQPConnectionError as e:
+            self.response_dict[self.request_id] = {"error": "Unable to connect to the server", "status_code": 500}
+        except Exception as e:
+            self.response_dict[self.request_id] = {"error": "Internal Server Error", "status_code": 500}
+        finally:
+            self.request_id += 1
+            return self.request_id - 1
     
     def get_shard(self, key):
         """

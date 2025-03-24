@@ -84,10 +84,8 @@ def test_server():
     '''
     try:
         data = generate_data()
+
         # Starting the server
-        # For Mac
-        # server_process = subprocess.Popen(["python", "server.py", str(NUMBER_OF_NODES), str(NUMBER_OF_SHARDS)])
-        # For Windows
         python_executable = sys.executable 
         server_process = subprocess.Popen([python_executable, "RequestManager.py", str(NUMBER_OF_NODES), str(NUMBER_OF_SHARDS)])
         processes.append(server_process)
@@ -117,10 +115,9 @@ def test_server():
         # Delete the values
         for _ in range(NUMBER_OF_TESTCASES//2):
             random_key = random.choice(list(data.keys()))
-            delete_command =  f"curl -X GET http://127.0.0.1:8000/deletekey/{random_key}"
+            delete_command =  f"curl -X DELETE http://127.0.0.1:8000/deletekey/{random_key}"
             os.system(delete_command)
             time.sleep(5)
-
 
         time.sleep(5)
         # Checking the show all command
@@ -133,7 +130,6 @@ def test_server():
         print("Test failed")
         cleanup()
 
-
 def cleanup():
     '''
         Description: Prevents the server from running in the background after this script is terminated 
@@ -142,10 +138,9 @@ def cleanup():
     for process in processes:
         process.terminate()
 
-# Registering the cleanup function
-atexit.register(cleanup)
+atexit.register(cleanup) # Registering the cleanup function
 
 if __name__ == "__main__":
-    get_input()
-    test_server()
-    # calc_aggregate_time()
+    get_input() # Gets the number of nodes and shards from the user
+    test_server() # Performs various commands to test the server
+    # calc_aggregate_time() # Calculates the aggregate time
